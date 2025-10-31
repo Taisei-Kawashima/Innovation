@@ -2,6 +2,7 @@ package namake.rp.innovation
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.HeartRate
@@ -11,6 +12,8 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlin.math.roundToInt
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -27,13 +30,13 @@ class HealthConnectRepositoryImpl(private val context: Context) : HealthReposito
         val timeRange = TimeRangeFilter.between(start, end)
 
         // Steps
-        val stepsRequest = ReadRecordsRequest(timeRangeFilter = timeRange)
-        val stepsResponse = client.readRecords(Steps::class, stepsRequest)
-        val totalSteps = stepsResponse.records.sumOf { it.count?.toLong() ?: 0L }
+        val stepsRequest = ReadRecordsRequest(Steps::class, timeRangeFilter = timeRange)
+        val stepsResponse = client.readRecords(stepsRequest)
+        val totalSteps = stepsResponse.records.sumOf { rec -> (rec.count ?: 0).toLong() }
 
         // Sleep sessions: 合計睡眠時間（時間）
-        val sleepRequest = ReadRecordsRequest(timeRangeFilter = timeRange)
-        val sleepResponse = client.readRecords(SleepSession::class, sleepRequest)
+        val sleepRequest = ReadRecordsRequest(SleepSession::class, timeRangeFilter = timeRange)
+        val sleepResponse = client.readRecords(sleepRequest)
         val totalSleepSeconds = sleepResponse.records.fold(0L) { acc, session ->
             val startSec = session.startTime?.epochSecond ?: 0L
             val endSec = session.endTime?.epochSecond ?: 0L
@@ -42,10 +45,15 @@ class HealthConnectRepositoryImpl(private val context: Context) : HealthReposito
         val totalSleepHours = totalSleepSeconds / 3600.0
 
         // Heart rate: 平均
-        val hrRequest = ReadRecordsRequest(timeRangeFilter = timeRange)
-        val hrResponse = client.readRecords(HeartRate::class, hrRequest)
+        val hrRequest = ReadRecordsRequest(HeartRate::class, timeRangeFilter = timeRange)
+        val hrResponse = client.readRecords(hrRequest)
         val hrCount = hrResponse.records.size
-        val avgHr = if (hrCount > 0) hrResponse.records.mapNotNull { it.bpm }.average().toInt() else 0
+        val avgHr = if (hrCount > 0) {
+            hrResponse.records.mapNotNull { it.bpm }.average().roundToInt()
+        } else 0
+
+        // Log raw fetched values for debugging
+        Log.d("HealthApp", "HC fetched: steps=$totalSteps, sleepHours=${String.format("%.2f", totalSleepHours)}, avgHr=$avgHr, hrCount=$hrCount")
 
         // 簡易スコア
         val stepScore = when {
@@ -67,6 +75,8 @@ class HealthConnectRepositoryImpl(private val context: Context) : HealthReposito
             else -> 5
         }
         val exerciseScore = (stepScore + sleepScore + hrScore).coerceIn(0, 100)
+
+        Log.d("HealthApp", "HC computed scores: stepScore=$stepScore, sleepScore=$sleepScore, hrScore=$hrScore, exerciseScore=$exerciseScore")
 
         HealthData(
             exerciseScore = exerciseScore,
@@ -104,8 +114,11 @@ object HealthConnectRuntimeBridge {
                 HealthPermission.getReadPermission(HeartRate::class),
                 HealthPermission.getReadPermission(SleepSession::class)
             )
-            val granted = client.permissionController.getGrantedPermissions(permissions)
-            granted.containsAll(permissions)
+            // getGrantedPermissions is suspend; call from runBlocking to adapt to synchronous bridge API
+            val granted = runBlocking { client.permissionController.getGrantedPermissions() }
+            // granted is Set<String> (permission strings); compare using .toString() of each
+            val needed = permissions.map { it.permission }
+            granted.containsAll(needed)
         } catch (e: Exception) {
             false
         }
@@ -115,13 +128,16 @@ object HealthConnectRuntimeBridge {
     fun createRequestPermissionIntent(context: Context): Intent? {
         return try {
             val client = HealthConnectClient.getOrCreate(context)
-            client.permissionController.createRequestPermissionIntent(
-                setOf(
-                    HealthPermission.getReadPermission(Steps::class),
-                    HealthPermission.getReadPermission(HeartRate::class),
-                    HealthPermission.getReadPermission(SleepSession::class)
+            // createRequestPermissionIntent is suspend in some APIs; use runBlocking
+            runBlocking {
+                client.permissionController.createRequestPermissionIntent(
+                    setOf(
+                        HealthPermission.getReadPermission(Steps::class),
+                        HealthPermission.getReadPermission(HeartRate::class),
+                        HealthPermission.getReadPermission(SleepSession::class)
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
             null
         }

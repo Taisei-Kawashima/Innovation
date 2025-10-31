@@ -31,6 +31,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import namake.rp.innovation.ui.theme.InnovationTheme
 
+// Health Connect dependency is optional. We avoid direct references to record classes so the
+// project can compile when the library is not present. We rely on a runtime bridge
+// `namake.rp.innovation.HealthConnectRuntimeBridge` (if compiled into the optional source set)
+// to perform Health Connect operations via reflection.
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,9 +49,7 @@ class MainActivity : ComponentActivity() {
             return try {
                 val cls = Class.forName("namake.rp.innovation.HealthConnectRuntimeBridge")
                 val method = cls.getMethod("hasPermissions", Context::class.java)
-                val res = method.invoke(null, ctx) as? Boolean ?: false
-                Log.d("HealthApp", "healthBridgeHasPermissions -> $res")
-                res
+                method.invoke(null, ctx) as? Boolean ?: false
             } catch (e: Exception) {
                 Log.d("HealthApp", "healthBridgeHasPermissions: bridge not available: ${e.message}")
                 false
@@ -57,9 +60,7 @@ class MainActivity : ComponentActivity() {
             return try {
                 val cls = Class.forName("namake.rp.innovation.HealthConnectRuntimeBridge")
                 val method = cls.getMethod("createRequestPermissionIntent", Context::class.java)
-                val intent = method.invoke(null, ctx) as? Intent
-                Log.d("HealthApp", "healthBridgeCreateIntent -> ${intent != null}")
-                intent
+                method.invoke(null, ctx) as? Intent
             } catch (e: Exception) {
                 Log.d("HealthApp", "healthBridgeCreateIntent: bridge not available: ${e.message}")
                 null
@@ -107,32 +108,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Data model for health values
-data class HealthData(
-    val exerciseScore: Int,
-    val sleepHours: Double,
-    val steps: Int,
-    val heartRate: Int
-)
-
-// Repository interface - later replace with real Health Connect implementation
-interface HealthRepository {
-    suspend fun fetchHealthData(): HealthData
-}
-
-// Mock implementation used for demo and UI wiring
-class MockHealthRepository : HealthRepository {
-    override suspend fun fetchHealthData(): HealthData {
-        // Simulate network / SDK delay
-        delay(500)
-        return HealthData(
-            exerciseScore = 75,
-            sleepHours = 6.2,
-            steps = 8342,
-            heartRate = 68
-        )
-    }
-}
+// Note: Use centralized models: HealthData and HealthRepository are defined in HealthModels.kt
 
 suspend fun evaluateJavascriptBoolean(webView: WebView, script: String, timeoutMs: Long = 2000): Boolean {
     val deferred = CompletableDeferred<Boolean>()
@@ -327,7 +303,7 @@ fun WebDashboard(permissionHandler: HealthPermissionHandler) {
                     } else {
                         // refresh mock data
                         try {
-                            val md = MockHealthRepository().fetchHealthData()
+                            val md = MockHealthConnectRepositoryImpl(context).fetchHealthData()
                             val mjson = "{\"exerciseScore\":${md.exerciseScore},\"sleepHours\":${md.sleepHours},\"steps\":${md.steps},\"heartRate\":${md.heartRate}}"
                             val wv2 = webViewRef.value
                             if (wv2 != null) {

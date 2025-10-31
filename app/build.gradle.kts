@@ -37,6 +37,18 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Conditionally include healthconnect optional source set into main when enabled by
+    // gradle.properties (enableHealthConnect=true). This makes files under
+    // src/healthconnect/java compile into the APK.
+    val enableHealthConnect = project.findProperty("enableHealthConnect")?.toString()?.toBoolean() ?: false
+    if (enableHealthConnect) {
+        sourceSets {
+            getByName("main") {
+                java.srcDir("src/healthconnect/java")
+            }
+        }
+    }
 }
 
 dependencies {
@@ -50,7 +62,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    implementation("androidx.health.connect:connect-client:1.2.0-alpha02")
+    implementation("androidx.health.connect:connect-client:1.0.0-alpha11")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
