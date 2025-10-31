@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>総合健康アプリ - ダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide icons for clean, modern look -->
+    <script type="module">
+        import { createIcons, Activity, Moon, Heart, TrendingUp, AlertTriangle, ChevronRight, CheckCircle } from 'https://unpkg.com/lucide@latest/dist/esm/lucide.js';
+        document.addEventListener('DOMContentLoaded', () => {
+          createIcons({
+            icons: { Activity, Moon, Heart, TrendingUp, AlertTriangle, ChevronRight, CheckCircle }
+          });
+        });
+    </script>
+    <style>
+        /* フォント設定と暖色系のカスタムカラー */
+        :root {
+            --color-primary: #FF7043; /* 暖色系のオレンジ */
+            --color-secondary: #FFCC80; /* 明るいオレンジ */
+            --color-background: #F8F4F2; /* 暖かなオフホワイト */
+            --color-surface: #FFFFFF;
+            --color-alert: #EF5350; /* 警告レッド */
+            --color-safe: #66BB6A; /* 安全グリーン */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background);
+            /* body全体がコンテンツエリアとなる */
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+        }
+        .header-content {
+            padding: 16px 20px;
+            background-color: var(--color-surface);
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        .card {
+            background-color: var(--color-surface);
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #E64A19;
+        }
+        .gauge-ring {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+        .gauge-svg {
+            position: absolute;
+            transform: rotate(-90deg);
+        }
+        /* コンテンツエリアのパディング */
+        .app-content {
+            padding: 16px; /* bodyのp-4をより標準的なパディングに変更 */
+        }
+    </style>
+</head>
+<body>
+
+<!-- メインコンテンツエリア -->
+<div class="app-content max-w-xl mx-auto">
+    <!-- ヘッダー -->
+    <div class="header-content mb-4">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold text-gray-800">Hello, ユーザー名 👋</h1>
+            <div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-sm font-semibold text-gray-600">
+                <img src="https://placehold.co/40x40/FF7043/ffffff?text=U" alt="Profile" class="rounded-full">
+            </div>
+        </div>
+        <!-- データ連携ステータス -->
+        <div class="flex items-center text-sm text-gray-500 mb-2">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-1 text-green-500"></i>
+            <span>Health Connectと連携済み</span>
+        </div>
+    </div>
+
+    <!-- 1. 警告・アクションカード (独自性: 改善アドバイス) -->
+    <div class="card bg-orange-50 border-l-4 border-[--color-alert]">
+        <div class="flex items-start">
+            <i data-lucide="alert-triangle" class="w-6 h-6 mr-3 text-[--color-alert] mt-1"></i>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-800 mb-1">【警告】睡眠負債が蓄積しています</h2>
+                <p class="text-gray-600 text-sm">過去3日間の平均睡眠時間が目標より**90分不足**しています。このままでは集中力低下に繋がります。</p>
+            </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-orange-200">
+            <p class="text-sm font-semibold text-[--color-primary] flex justify-between items-center">
+                **今夜の目標**：23:00就寝を目指しましょう
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </p>
+        </div>
+    </div>
+
+    <!-- 2. 健康スコア・行動サマリー (独自性: データ統合) -->
+    <div class="card">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">総合健康スコア</h2>
+        <div class="flex items-center justify-between">
+            <!-- スコアのゲージ -->
+            <div class="gauge-ring bg-gray-100">
+                <svg class="gauge-svg" width="100" height="100" viewBox="0 0 100 100">
+                    <!-- Background arc (Stroke-dasharray is used to simulate the gauge) -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#E0E0E0" stroke-width="8" />
+                    <!-- Foreground arc (Simulate 75% score) -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="var(--color-primary)" stroke-width="8"
+                            stroke-dasharray="282.6" stroke-dashoffset="70.65" style="transition: stroke-dashoffset 0.5s ease;"/>
+                </svg>
+                <div class="text-3xl font-bold text-[--color-primary] z-10">75<span class="text-lg text-gray-600">/100</span></div>
+            </div>
+            <!-- 主要な指標 -->
+            <div class="w-2/3 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center text-gray-600 text-sm"><i data-lucide="activity" class="w-4 h-4 mr-1 text-green-500"></i> 運動</span>
+                    <span class="font-semibold text-gray-800">良好 (+5P)</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center text-gray-600 text-sm"><i data-lucide="moon" class="w-4 h-4 mr-1 text-orange-500"></i> 睡眠</span>
+                    <span class="font-semibold text-gray-800">要改善 (-10P)</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center text-gray-600 text-sm"><i data-lucide="heart" class="w-4 h-4 mr-1 text-green-500"></i> 心拍数</span>
+                    <span class="font-semibold text-gray-800">安定 (+2P)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 次の具体的なアクション (独自性: 行動変容) -->
+    <div class="card">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">今日の**次のアクション**</h2>
+        <ul class="space-y-3">
+            <!-- アクション項目 1 -->
+            <li class="bg-blue-50 p-3 rounded-lg flex items-center justify-between shadow-sm">
+                <div class="flex items-center">
+                    <span class="inline-block w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+                    <p class="text-sm font-medium text-gray-700">【運動】あと15分**軽いウォーキング**をする</p>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+            </li>
+            <!-- アクション項目 2 -->
+            <li class="bg-red-50 p-3 rounded-lg flex items-center justify-between shadow-sm">
+                <div class="flex items-center">
+                    <span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+                    <p class="text-sm font-medium text-gray-700">【食事】夕食の**塩分摂取量を1g減らす**</p>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-red-500"></i>
+            </li>
+        </ul>
+        <p class="text-xs text-gray-500 mt-4">※これらのアクションは、過去のデータと今日の活動状況に基づいて提案されています。</p>
+    </div>
+
+    <!-- 4. データ推移（グラフのプレースホルダー） -->
+    <div class="card">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">過去7日間の活動トレンド</h2>
+        <div class="flex justify-between items-center text-sm text-gray-500 mb-3">
+            <span>運動時間 (分)</span>
+            <span class="text-green-600 flex items-center"><i data-lucide="trending-up" class="w-4 h-4 mr-1"></i> +15%</span>
+        </div>
+        <!-- グラフのプレースホルダー -->
+        <div class="bg-gray-100 h-40 rounded-lg flex items-center justify-center text-gray-500 text-sm">
+            <!-- 実際のアプリではここに動的なグラフ（例：D3.js）が表示されます -->
+            グラフエリア（運動、睡眠などの推移を表示）
+        </div>
+    </div>
+
+    <!-- 5. 低コストアピールカード -->
+    <div class="card bg-[--color-primary] text-white">
+        <h2 class="text-xl font-bold mb-2">低コストで、あなたの健康習慣をサポート。</h2>
+        <p class="text-sm opacity-90">スマートウォッチは不要。他社に比べて**年間で数万円の節約**が可能です。</p>
+        <button class="mt-4 bg-white text-[--color-primary] font-bold py-2 px-4 rounded-full text-sm shadow-md transition-transform transform hover:scale-[1.02]">
+            年間コスト比較を見る
+        </button>
+    </div>
+
+    <!-- 下部の余白 -->
+    <div class="h-10"></div>
+</div>
+
+<script>
+    // Health Connect API連携を想定したデータ取得のロジック（ダミー）
+    const fetchHealthData = async () => {
+        // Android Studio 環境では、ここでHealth Connect APIを通じてデータを取得する
+        // 取得したデータに基づいて、スコアや警告、次のアクションを計算し、UIを更新する
+        console.log("Health Connect APIから最新データを取得中...");
+
+        // ダミーデータでUIを更新する例
+        const score = 75; // 実際は計算で求める
+        const gaugeCircle = document.querySelector('.gauge-svg circle:nth-child(2)');
+        const scoreDisplay = document.querySelector('.gauge-ring > div');
+
+        // スコアに基づいたゲージの調整 (100% = 282.6)
+        const circumference = 2 * Math.PI * 45; // 282.74
+        const offset = circumference - (score / 100) * circumference;
+
+        if (gaugeCircle) {
+            gaugeCircle.style.strokeDashoffset = offset;
+        }
+        if (scoreDisplay) {
+            scoreDisplay.innerHTML = `${score}<span class="text-lg text-gray-600">/100</span>`;
+        }
+    };
+
+    // 初期化関数
+    const initializeApp = () => {
+        // UIがロードされたらデータをフェッチ
+        fetchHealthData();
+
+        // Android Studioでは、この部分のロジックをKotlin/Javaで実装し、
+        // Health Connectとのやり取りを行います。
+        // このHTML/JSは、そのデザインと表示ロジックをシミュレーションしています。
+    };
+
+    window.onload = initializeApp;
+</script>
+
+</body>
+</html>

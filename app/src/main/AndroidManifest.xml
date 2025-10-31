@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Allow WebView to load remote content -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Health-related permissions (request at runtime as needed) -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />

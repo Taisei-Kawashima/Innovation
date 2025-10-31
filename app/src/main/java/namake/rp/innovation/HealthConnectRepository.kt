@@ -5,19 +5,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 現在のビルド構成では Health Connect のライブラリがプロジェクトに含まれていないため、
- * ここではモック実装を提供します。Health Connect を導入するときはこのクラスを差し替えてください。
+ * Mock implementation kept in main sources so the project compiles without Health Connect dependency.
+ * When Health Connect is enabled, a real `HealthConnectRepositoryImpl` is compiled into the optional
+ * source set and will be used by the factory. To avoid duplicate class names, this mock is renamed.
  */
-class HealthConnectRepositoryImpl(private val context: Context) : HealthRepository {
+class MockHealthConnectRepositoryImpl(private val context: Context) : HealthRepository {
     override suspend fun fetchHealthData(): HealthData = withContext(Dispatchers.IO) {
-        // TODO: Health Connect SDK を導入したら、ここで HealthConnectClient を使ってデータを取得してください。
-        // 例（擬似）:
-        // val client = HealthConnectClient.getOrCreate(context)
-        // val steps = client.readRecords(Steps::class, ...)
-        // val sleep = client.readRecords(SleepSession::class, ...)
-        // val heart = client.readRecords(HeartRate::class, ...)
-
-        // ここではモック値を返す
+        // Return mock values
         HealthData(
             exerciseScore = 75,
             sleepHours = 6.2,
