@@ -30,32 +30,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import namake.rp.innovation.ui.theme.AlertBackground
 import namake.rp.innovation.ui.theme.AppAlert
-import namake.rp.innovation.ui.theme.AppBackground
 import namake.rp.innovation.ui.theme.AppPrimary
 import namake.rp.innovation.ui.theme.AppSafe
 import namake.rp.innovation.ui.theme.QuestBlueBg
 import namake.rp.innovation.ui.theme.QuestRedBg
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(viewModel: HealthViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
 
-    Surface(color = AppBackground) {
+    Surface(color = Color.White, modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 DashboardHeader(
                     userName = state.userName,
                     isLinked = state.isHealthConnectLinked
                 )
-            }
+            },
+            containerColor = Color.White,
+            contentColor = Color.Black
         ) { paddingValues ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(Color.White)
                     .padding(paddingValues)
                     .widthIn(max = 500.dp),
                 contentPadding = PaddingValues(16.dp),
@@ -73,7 +77,12 @@ fun DashboardScreen(viewModel: HealthViewModel = viewModel()) {
                         score = state.totalScore,
                         exerciseStatus = state.exerciseStatus,
                         sleepStatus = state.sleepStatus,
-                        heartRateStatus = state.heartRateStatus
+                        heartRateStatus = state.heartRateStatus,
+                        todaySteps = state.todaySteps,
+                        sleepHours = state.sleepHours,
+                        heartRate = state.heartRate,
+                        todaySleepHours = state.todaySleepHours,
+                        yesterdaySleepHours = state.yesterdaySleepHours
                     )
                 }
 
@@ -82,12 +91,12 @@ fun DashboardScreen(viewModel: HealthViewModel = viewModel()) {
                 }
 
                 item {
-                    TrendCard()
+                    TrendCard(dailySteps = state.dailySteps)
                 }
 
-                item {
-                    CostAppealCard()
-                }
+//                item {
+//                    CostAppealCard()
+//                }
 
                 item {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -110,16 +119,21 @@ fun DashboardHeader(userName: String, isLinked: Boolean) {
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Hello, $userName 👋",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.DarkGray
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        model = "android.resource://namake.rp.innovation/drawable/karadalog"
+                    ),
+                    contentDescription = "Karada Logo",
+                    modifier = Modifier
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Fit
                 )
                 Image(
                     painter = rememberAsyncImagePainter(
@@ -132,15 +146,6 @@ fun DashboardHeader(userName: String, isLinked: Boolean) {
                     contentScale = ContentScale.Crop
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val statusText = if (isLinked) "Health Connectと連携済み" else "未連携 - 設定から有効にしてください"
-
-            Text(
-                text = statusText,
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
         }
     }
 }
@@ -204,39 +209,71 @@ fun HealthScoreCard(
     score: Int,
     exerciseStatus: String,
     sleepStatus: String,
-    heartRateStatus: String
+    heartRateStatus: String,
+    todaySteps: Int = 0,
+    sleepHours: Double = 0.0,
+    heartRate: Int = 0,
+    todaySleepHours: Double = 0.0,
+    yesterdaySleepHours: Double = 0.0
 ) {
     AppCard {
-        Text(
-            text = "総合健康スコア",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.DarkGray
-        )
-        Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
         ) {
-            ScoreGauge(score = score, modifier = Modifier.size(100.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "総合健康スコア",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.DarkGray
+                )
 
-            Spacer(modifier = Modifier.width(24.dp))
+                ScoreGauge(score = score, modifier = Modifier.size(100.dp))
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
 
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // 今日の歩数セクション
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFFFE0B2),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "今日の歩数",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "$todaySteps",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF7043)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 ScoreBreakdownRow(
                     title = "運動",
-                    value = exerciseStatus
+                    value = todaySteps.toString() + "歩"
                 )
                 ScoreBreakdownRow(
                     title = "睡眠",
-                    value = sleepStatus
+                    value = String.format(Locale.US, "%.1f時間", yesterdaySleepHours)
                 )
                 ScoreBreakdownRow(
                     title = "心拍数",
-                    value = heartRateStatus
+                    value = "$heartRate bpm"
                 )
             }
         }
@@ -264,18 +301,24 @@ fun ScoreGauge(score: Int, modifier: Modifier = Modifier) {
             strokeWidth = 10.dp,
             strokeCap = StrokeCap.Round
         )
-        Text(
-            text = "$score",
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = AppPrimary
-        )
-        Text(
-            text = "/100",
-            fontSize = 14.sp,
-            color = Color.Gray,
-            modifier = Modifier.padding(top = 40.dp, start = 55.dp)
-        )
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "$score",
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppPrimary
+            )
+            Text(
+                text = "/100",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+        }
     }
 }
 
@@ -361,7 +404,7 @@ fun QuestItem(text: String, color: Color, backgroundColor: Color) {
 }
 
 @Composable
-fun TrendCard() {
+fun TrendCard(dailySteps: List<Int> = emptyList()) {
     AppCard {
         Text(
             text = "過去7日間の活動トレンド",
@@ -375,24 +418,110 @@ fun TrendCard() {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "運動時間 (分)", fontSize = 14.sp, color = Color.Gray)
+            Text(text = "歩数 (歩)", fontSize = 14.sp, color = Color.Gray)
             Text(text = "+15%", fontSize = 14.sp, color = AppSafe, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.height(12.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "グラフエリア（運動、睡眠などの推移を表示）",
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
+        // グラフを表示（日別歩数データを使用）
+        if (dailySteps.isNotEmpty()) {
+            ActivityTrendChart(dailySteps = dailySteps)
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "データを読み込み中...", fontSize = 14.sp, color = Color.Gray)
+            }
         }
+    }
+}
+
+@Composable
+fun ActivityTrendChart(dailySteps: List<Int>) {
+    val entries = dailySteps.mapIndexed { index, steps ->
+        com.github.mikephil.charting.data.Entry(index.toFloat(), steps.toFloat())
+    }
+
+    val maxSteps = dailySteps.maxOrNull() ?: 10000
+    val baseSteps = maxSteps.toFloat()
+
+    // 現在の日付から7日間の日付ラベルを生成
+    val dateLabels = run {
+        val today = java.time.LocalDate.now()
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("MM/dd")
+        (0..6).map { index ->
+            today.minusDays((6 - index).toLong()).format(formatter)
+        }.toTypedArray()
+    }
+
+    val dataSet = com.github.mikephil.charting.data.LineDataSet(entries, "歩数").apply {
+        color = android.graphics.Color.rgb(70, 130, 180)
+        setDrawCircles(true)
+        circleRadius = 4f
+        lineWidth = 2.5f
+        setDrawValues(true)
+        valueTextSize = 30f
+        setCircleColor(android.graphics.Color.rgb(70, 130, 180))
+        mode = com.github.mikephil.charting.data.LineDataSet.Mode.CUBIC_BEZIER
+    }
+
+    val lineData = com.github.mikephil.charting.data.LineData(dataSet)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp)
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                com.github.mikephil.charting.utils.Utils.init(context)
+
+                com.github.mikephil.charting.charts.LineChart(context).apply {
+                    data = lineData
+                    description.isEnabled = false
+                    axisRight.isEnabled = false
+                    axisLeft.apply {
+                        axisMinimum = 0f
+                        axisMaximum = (baseSteps * 1.2f).coerceAtLeast(10000f)
+                        setDrawGridLines(true)
+                    }
+                    xAxis.apply {
+                        labelCount = 7
+                        setDrawLabels(true)
+                        valueFormatter = object : com.github.mikephil.charting.formatter.IndexAxisValueFormatter() {
+                            override fun getFormattedValue(value: Float): String {
+                                val index = value.toInt()
+                                return if (index >= 0 && index < dateLabels.size) dateLabels[index] else ""
+                            }
+                        }
+                        position = com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM
+                    }
+                    legend.apply {
+                        isEnabled = true
+                        form = com.github.mikephil.charting.components.Legend.LegendForm.LINE
+                        textColor = android.graphics.Color.BLACK
+                    }
+                    setTouchEnabled(true)
+                    isDragEnabled = true
+                    isScaleXEnabled = false
+                    isScaleYEnabled = false
+                    invalidate()
+                }
+            },
+            update = { chart ->
+                chart.data = lineData
+                chart.axisLeft.apply {
+                    axisMinimum = 0f
+                    axisMaximum = (baseSteps * 1.2f).coerceAtLeast(10000f)
+                }
+                chart.invalidate()
+            }
+        )
     }
 }
 
