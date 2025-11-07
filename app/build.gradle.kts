@@ -67,6 +67,16 @@ dependencies {
     implementation("com.connectrpc:connect-kotlin-google-java-ext:0.7.0")
     implementation("com.google.protobuf:protobuf-java:4.28.2")
 
+    // MPAndroidChart for graphing
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+
+    // Jetpack Compose - ViewModel integration
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+
+    // Coil - Image loading library
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+
 //    implementation(libs.androidx.connect.client)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

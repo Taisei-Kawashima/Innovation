@@ -30,7 +30,7 @@
             background-color: var(--color-background);
             /* body全体がコンテンツエリアとなる */
             min-height: 100vh;
-            padding: 0;
+    <!-- 2. 次の具体的なアクション (独自性: 行動変容) -->
             margin: 0;
         }
         .header-content {
@@ -54,21 +54,9 @@
             background-color: var(--color-primary);
             color: white;
             padding: 12px 20px;
-            border-radius: 12px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        .btn-primary:hover {
-            background-color: #E64A19;
-        }
-        .gauge-ring {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
             position: relative;
-        }
+
+    <!-- 3. 低コストアピールカード -->
         .gauge-svg {
             position: absolute;
             transform: rotate(-90deg);
@@ -150,13 +138,13 @@
 
     <!-- 3. 次の具体的なアクション (独自性: 行動変容) -->
     <div class="card">
-        <h2 class="text-lg font-semibold text-gray-800 mb-3">今日のアクション</h2>
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">今日のミニクエスト</h2>
         <ul class="space-y-3">
             <!-- アクション項目 1 -->
             <li class="bg-blue-50 p-3 rounded-lg flex items-center justify-between shadow-sm">
                 <div class="flex items-center">
                     <span class="inline-block w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
-                    <p class="text-sm font-medium text-gray-700">【運動】あと15分軽いウォーキング**をする</p>
+                    <p class="text-sm font-medium text-gray-700">【運動】あと15分軽いウォーキングをする</p>
                 </div>
                 <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
             </li>
