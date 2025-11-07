@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
  * When Health Connect is enabled, a real `HealthConnectRepositoryImpl` is compiled into the optional
  * source set and will be used by the factory. To avoid duplicate class names, this mock is renamed.
  */
-class MockHealthConnectRepositoryImpl(context: Context) : HealthRepository {
+class MockHealthConnectRepositoryImpl(private val context: Context) : HealthRepository {
     override suspend fun fetchHealthData(): HealthData = withContext(Dispatchers.IO) {
         // Return mock values
         HealthData(

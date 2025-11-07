@@ -12,10 +12,16 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
+import androidx.compose.foundation.border
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,77 +29,48 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import namake.rp.innovation.ui.theme.InnovationTheme
 
-// Health Connect dependency is optional. We avoid direct references to record classes so the
-// project can compile when the library is not present. We rely on a runtime bridge
-// `namake.rp.innovation.HealthConnectRuntimeBridge` (if compiled into the optional source set)
-// to perform Health Connect operations via reflection.
-
 class MainActivity : ComponentActivity() {
+    private val permissionState = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Permission state holder
-        val permissionState = mutableStateOf(false)
-
-        // Helper functions to call HealthConnectRuntimeBridge via reflection
-        fun healthBridgeHasPermissions(ctx: Context): Boolean {
-            return try {
-                val cls = Class.forName("namake.rp.innovation.HealthConnectRuntimeBridge")
-                val method = cls.getMethod("hasPermissions", Context::class.java)
-                method.invoke(null, ctx) as? Boolean ?: false
-            } catch (e: Exception) {
-                Log.d("HealthApp", "healthBridgeHasPermissions: bridge not available: ${e.message}")
-                false
-            }
-        }
-
-        fun healthBridgeCreateIntent(ctx: Context): Intent? {
-            return try {
-                val cls = Class.forName("namake.rp.innovation.HealthConnectRuntimeBridge")
-                val method = cls.getMethod("createRequestPermissionIntent", Context::class.java)
-                method.invoke(null, ctx) as? Intent
-            } catch (e: Exception) {
-                Log.d("HealthApp", "healthBridgeCreateIntent: bridge not available: ${e.message}")
-                null
-            }
-        }
-
-        // Initialize permission state using the bridge (safe if bridge is absent)
         permissionState.value = healthBridgeHasPermissions(this)
-        Log.d("HealthApp", "initial permissionState=${permissionState.value}")
+        Log.d("HealthApp", "Initial permissionState=${permissionState.value}")
 
-        // Register launcher for Health Connect permission intent
-        val permissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            Log.d("HealthApp", "permissionLauncher resultCode=${result.resultCode}")
-            if (result.resultCode == Activity.RESULT_OK) {
-                permissionState.value = healthBridgeHasPermissions(this)
-                Log.d("HealthApp", "permission granted -> permissionState=${permissionState.value}")
-            } else {
-                Log.d("HealthApp", "permission not granted or cancelled")
-            }
-        }
-
-        // Implement HealthPermissionHandler that uses the launcher and reflection bridge
         val permissionHandler = object : HealthPermissionHandler {
-            override fun hasPermissions(context: Context): Boolean = permissionState.value
+            override fun hasPermissions(context: Context): Boolean {
+                return permissionState.value
+            }
+
             override fun requestPermissions(context: Context) {
-                lifecycleScope.launch {
+                try {
+                    Log.d("HealthApp", "Requesting Health Connect permissions")
+                    // Call bridge.requestPermissions directly
+                    val cls = Class.forName("namake.rp.innovation.HealthConnectRepositoryImpl\$HealthConnectRuntimeBridge")
+                    val method = cls.getMethod("requestPermissions", Context::class.java)
+                    method.invoke(null, context)
+                    Log.d("HealthApp", "Permission request launched")
+                } catch (e: Exception) {
+                    Log.e("HealthApp", "Failed to request permissions", e)
+                    // As a last resort, open the URI directly
                     try {
-                        val intent = healthBridgeCreateIntent(context)
-                        Log.d("HealthApp", "requestPermissions: launching intent? ${intent != null}")
-                        if (intent != null) permissionLauncher.launch(intent)
-                    } catch (e: Exception) {
-                        Log.d("HealthApp", "requestPermissions: failed to create/launch intent: ${e.message}")
-                        // ignore
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            data = "healthconnect://permissions".toUri()
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (ex: Exception) {
+                        Log.e("HealthApp", "Fallback URI open failed", ex)
                     }
                 }
             }
@@ -101,14 +78,33 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             InnovationTheme {
-                // Load the HTML dashboard in a WebView and pass HealthConnect data into it
                 WebDashboard(permissionHandler = permissionHandler)
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-check permissions after returning from permission UI
+        val newState = healthBridgeHasPermissions(this)
+        if (newState != permissionState.value) {
+            permissionState.value = newState
+            Log.d("HealthApp", "Permission state changed in onResume: ${permissionState.value}")
+        }
+    }
+
+    private fun healthBridgeHasPermissions(ctx: Context): Boolean {
+        return try {
+            val cls = Class.forName("namake.rp.innovation.HealthConnectRepositoryImpl\$HealthConnectRuntimeBridge")
+            val method = cls.getMethod("hasPermissions", Context::class.java)
+            method.invoke(null, ctx) as? Boolean ?: false
+        } catch (e: Exception) {
+            Log.d("HealthApp", "Bridge not available: ${e.message}")
+            false
+        }
+    }
 }
 
-// Note: Use centralized models: HealthData and HealthRepository are defined in HealthModels.kt
 
 suspend fun evaluateJavascriptBoolean(webView: WebView, script: String, timeoutMs: Long = 2000): Boolean {
     val deferred = CompletableDeferred<Boolean>()
@@ -116,7 +112,6 @@ suspend fun evaluateJavascriptBoolean(webView: WebView, script: String, timeoutM
         webView.post {
             try {
                 webView.evaluateJavascript(script) { result ->
-                    // result is a JSON value like "true" or "false" (including quotes)
                     val cleaned = result?.trim() ?: "false"
                     val value = when (cleaned) {
                         "true", "\"true\"" -> true
@@ -144,191 +139,220 @@ fun WebDashboard(permissionHandler: HealthPermissionHandler) {
     val context = LocalContext.current
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
     val pageLoaded = remember { mutableStateOf(false) }
+    val permissionState = remember { mutableStateOf(permissionHandler.hasPermissions(context)) }
+    val debugLog = remember { mutableStateOf(listOf<String>()) }
 
-    AndroidView(factory = { ctx ->
-        WebView(ctx).apply {
-            settings.javaScriptEnabled = true
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    webViewRef.value = view
-                    pageLoaded.value = true
-                    Log.d("HealthApp", "WebView onPageFinished: $url")
+    fun addLog(msg: String) {
+        Log.d("HealthApp", msg)
+        debugLog.value = (debugLog.value + "[${System.currentTimeMillis() % 10000}] $msg").takeLast(20)
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // WebView (takes up most space)
+        AndroidView(factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        webViewRef.value = view
+                        pageLoaded.value = true
+                        addLog("WebView loaded: $url")
+                    }
+                }
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                        Log.d("WebView", "${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
+                        return true
+                    }
+                }
+                WebView.setWebContentsDebuggingEnabled(true)
+                loadUrl("file:///android_asset/dashboard.html")
+            }
+        }, modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.7f))
+
+        // Debug panel with permission button
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            androidx.compose.material3.Button(
+                onClick = {
+                    addLog("User clicked: Request Permissions button")
+                    permissionState.value = permissionHandler.hasPermissions(context)
+                    addLog("Current permission state: ${permissionState.value}")
+                    if (!permissionState.value) {
+                        addLog("Starting permission request...")
+                        try {
+                            permissionHandler.requestPermissions(context)
+                            addLog("requestPermissions() called successfully")
+                        } catch (e: Exception) {
+                            addLog("ERROR in requestPermissions: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    } else {
+                        addLog("Already has permissions!")
+                    }
+                }
+            ) {
+                androidx.compose.material3.Text(
+                    if (permissionState.value) "✓ Has Permissions" else "Request Permissions"
+                )
+            }
+
+            androidx.compose.material3.Button(
+                onClick = {
+                    addLog("User clicked: Check Permissions button")
+                    permissionState.value = permissionHandler.hasPermissions(context)
+                    addLog("Permission check result: ${permissionState.value}")
+                }
+            ) {
+                androidx.compose.material3.Text("Check Permissions")
+            }
+
+            // Debug log display
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 150.dp)
+                    .border(1.dp, androidx.compose.material3.MaterialTheme.colorScheme.outline)
+                    .padding(4.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
+                debugLog.value.forEach { logLine ->
+                    androidx.compose.material3.Text(
+                        logLine,
+                        fontSize = 10.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
-            webChromeClient = object : WebChromeClient() {
-                override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                    Log.d("WebViewConsole", "${consoleMessage.message()} (source: ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}) level=${consoleMessage.messageLevel()}")
-                    return true
-                }
-            }
-            WebView.setWebContentsDebuggingEnabled(true)
-            loadUrl("file:///android_asset/dashboard.html")
         }
-    }, modifier = Modifier.fillMaxSize()) { view ->
-        // no-op
     }
 
     LaunchedEffect(Unit) {
-        // Ensure permissions: if not granted, request and wait up to timeout for user to grant
+        addLog("=== LaunchedEffect started ===")
+        addLog("Initial permission state: ${permissionHandler.hasPermissions(context)}")
+
         if (!permissionHandler.hasPermissions(context)) {
-            Log.d("HealthApp", "No permissions: requesting")
+            addLog("No permissions, auto-requesting...")
             permissionHandler.requestPermissions(context)
-            // wait for the user to grant permission (polling) up to 15 seconds
+            addLog("Auto-request completed")
+
+            // Health Connect設定画面から戻るまで待機
             val start = System.currentTimeMillis()
-            val timeout = 15_000L
-            while (!permissionHandler.hasPermissions(context) && System.currentTimeMillis() - start < timeout) {
-                delay(500)
+            while (!permissionHandler.hasPermissions(context) &&
+                System.currentTimeMillis() - start < 30_000) {
+                addLog("Waiting for permissions... (${System.currentTimeMillis() - start}ms)")
+                delay(1000)  // 1秒ごとにチェック
             }
-            Log.d("HealthApp", "Permission check after wait: ${permissionHandler.hasPermissions(context)}")
+            addLog("Wait completed. Has permissions: ${permissionHandler.hasPermissions(context)}")
         }
 
         val useReal = permissionHandler.hasPermissions(context)
-        Log.d("HealthApp", "Using real HealthConnect implementation? $useReal")
+        addLog("Using real implementation: $useReal")
+
         val repo: HealthRepository = if (useReal) {
-            // Try to instantiate real HealthConnectRepositoryImpl via reflection if available
             try {
+                addLog("Creating real HealthConnectRepositoryImpl...")
                 val cls = Class.forName("namake.rp.innovation.HealthConnectRepositoryImpl")
                 val ctor = cls.getConstructor(Context::class.java)
                 ctor.newInstance(context) as HealthRepository
             } catch (e: Exception) {
-                Log.d("HealthApp", "Failed to instantiate real repo via reflection: ${e.message}")
-                // Fallback to mock implementation
+                addLog("ERROR creating real repo: ${e.message}")
+                Log.e("HealthApp", "Failed to create real repo", e)
                 MockHealthConnectRepositoryImpl(context)
             }
         } else {
+            addLog("Using mock repository")
             MockHealthConnectRepositoryImpl(context)
         }
 
         try {
-            val d = repo.fetchHealthData()
-            val json = "{\"exerciseScore\":${d.exerciseScore},\"sleepHours\":${d.sleepHours},\"steps\":${d.steps},\"heartRate\":${d.heartRate}}"
-            Log.d("HealthApp", "fetched health data -> $json")
-            // Wait for page to be loaded before injecting JS
+            addLog("Fetching health data...")
+            val data = repo.fetchHealthData()
+            val json = "{\"exerciseScore\":${data.exerciseScore},\"sleepHours\":${data.sleepHours},\"steps\":${data.steps},\"heartRate\":${data.heartRate}}"
+            addLog("Fetched data: $json")
+
             while (!pageLoaded.value) {
+                addLog("Waiting for WebView to load...")
                 delay(100)
             }
 
-            // Notify WebView about Health Connect status (true = real, false = mock)
             val webView = webViewRef.value
             if (webView != null) {
                 try {
-                    val statusScript = "(function(){try{if(typeof window.setHealthConnectStatus==='function'){window.setHealthConnectStatus(${useReal});return true;}else{return false;}}catch(e){return false;}})();"
-                    // best-effort notify (no need to wait long)
-                    val statusOk = evaluateJavascriptBoolean(webView, statusScript, timeoutMs = 1000)
-                    Log.d("HealthApp", "setHealthConnectStatus called -> $statusOk")
+                    addLog("Setting Health Connect status to $useReal")
+                    val statusScript = "(function(){try{if(typeof window.setHealthConnectStatus==='function'){window.setHealthConnectStatus($useReal);return true;}return false;}catch(e){return false;}})();"
+                    evaluateJavascriptBoolean(webView, statusScript, 1000)
+                    addLog("Status script executed")
                 } catch (e: Exception) {
-                    Log.d("HealthApp", "error notifying setHealthConnectStatus: ${e.message}")
-                    // ignore
+                    addLog("ERROR setting status: ${e.message}")
+                    Log.e("HealthApp", "Failed to set HC status", e)
                 }
-            }
 
-            // Use robust injection: retry until window.updateHealthData is callable
-            if (webView != null) {
                 var injected = false
                 repeat(10) { attempt ->
-                    val script = "(function(){try{if(typeof window.updateHealthData==='function'){window.updateHealthData($json);return true;}else{return false;}}catch(e){return false;}})();"
-                    val ok = evaluateJavascriptBoolean(webView, script, timeoutMs = 1500)
-                    Log.d("HealthApp", "attempt=${attempt} updateHealthData callable? $ok")
+                    addLog("Injection attempt $attempt...")
+                    val script = "(function(){try{if(typeof window.updateHealthData==='function'){window.updateHealthData($json);return true;}return false;}catch(e){return false;}})();"
+                    val ok = evaluateJavascriptBoolean(webView, script, 1500)
+                    addLog("Injection attempt $attempt: $ok")
                     if (ok) {
                         injected = true
                         return@repeat
                     }
                     delay(300)
                 }
+
                 if (!injected) {
-                    // last effort without checking
-                    webView.post { webView.evaluateJavascript("try{window.updateHealthData($json);}catch(e){}", null) }
-                    Log.d("HealthApp", "last-effort injected without confirmation")
-                } else {
-                    Log.d("HealthApp", "injection succeeded")
+                    addLog("Using last-effort injection")
+                    webView.post {
+                        webView.evaluateJavascript("try{window.updateHealthData($json);}catch(e){console.error(e);}", null)
+                    }
+                    addLog("Last-effort injection posted")
                 }
+            } else {
+                addLog("ERROR: WebView is null!")
             }
 
-            // If we used Mock (because permission not granted), keep polling periodically and inject updates
             if (!useReal) {
-                // ensure WebView knows we are not connected
-                val wv0 = webViewRef.value
-                if (wv0 != null) {
-                    try {
-                        val statusFalse = "(function(){try{if(typeof window.setHealthConnectStatus==='function'){window.setHealthConnectStatus(false);return true;}else{return false;}}catch(e){return false;}})();"
-                        wv0.post { wv0.evaluateJavascript(statusFalse, null) }
-                    } catch (e: Exception) { Log.d("HealthApp", "notify not connected failed: ${e.message}") }
-                }
-
-                // poll every 30s to refresh data (or until permission is granted)
+                addLog("Polling for real permissions...")
                 while (true) {
                     delay(30_000)
+                    addLog("Poll check: hasPermissions=${permissionHandler.hasPermissions(context)}")
                     if (permissionHandler.hasPermissions(context)) {
-                        // permission granted later; switch to real repo and fetch once
+                        addLog("Real permissions granted! Fetching real data...")
                         try {
-                            val realRepo = try {
-                                val cls = Class.forName("namake.rp.innovation.HealthConnectRepositoryImpl")
-                                val ctor = cls.getConstructor(Context::class.java)
-                                ctor.newInstance(context) as HealthRepository
-                            } catch (exInst: Exception) {
-                                Log.d("HealthApp", "failed to instantiate real repo during polling: ${exInst.message}")
-                                null
-                            }
+                            val realRepo = Class.forName("namake.rp.innovation.HealthConnectRepositoryImpl")
+                                .getConstructor(Context::class.java)
+                                .newInstance(context) as? HealthRepository
+
                             val rd = realRepo?.fetchHealthData()
                             if (rd != null) {
                                 val rjson = "{\"exerciseScore\":${rd.exerciseScore},\"sleepHours\":${rd.sleepHours},\"steps\":${rd.steps},\"heartRate\":${rd.heartRate}}"
+                                addLog("Real data fetched: $rjson")
                                 val wv = webViewRef.value
-                                if (wv != null) {
-                                    // notify connected
-                                    try {
-                                        val statusTrue = "(function(){try{if(typeof window.setHealthConnectStatus==='function'){window.setHealthConnectStatus(true);return true;}else{return false;}}catch(e){return false;}})();"
-                                        wv.post { wv.evaluateJavascript(statusTrue, null) }
-                                        Log.d("HealthApp", "notified webview that HealthConnect is connected")
-                                    } catch (ex: Exception) { Log.d("HealthApp", "notify connected failed: ${ex.message}") }
-
-                                    var injected2 = false
-                                    repeat(10) {
-                                        val script2 = "(function(){try{if(typeof window.updateHealthData==='function'){window.updateHealthData($rjson);return true;}else{return false;}}catch(e){return false;}})();"
-                                        val ok2 = evaluateJavascriptBoolean(wv, script2, timeoutMs = 1500)
-                                        if (ok2) { injected2 = true; return@repeat }
-                                        delay(300)
-                                    }
-                                    if (!injected2) {
-                                        wv.post { wv.evaluateJavascript("try{window.updateHealthData($rjson);}catch(e){}", null) }
-                                    }
-                                    Log.d("HealthApp", "polled and injected real data after permission granted")
+                                wv?.post {
+                                    wv.evaluateJavascript("try{window.setHealthConnectStatus(true);window.updateHealthData($rjson);}catch(e){console.error(e);}", null)
                                 }
+                            } else {
+                                addLog("ERROR: Real repo returned null data")
                             }
-                        } catch (ex: Exception) {
-                            Log.d("HealthApp", "error during polling fetch: ${ex.message}")
-                            // ignore
+                        } catch (e: Exception) {
+                            addLog("ERROR fetching real data: ${e.message}")
+                            Log.e("HealthApp", "Failed to fetch real data", e)
                         }
                         break
-                    } else {
-                        // refresh mock data
-                        try {
-                            val md = MockHealthConnectRepositoryImpl(context).fetchHealthData()
-                            val mjson = "{\"exerciseScore\":${md.exerciseScore},\"sleepHours\":${md.sleepHours},\"steps\":${md.steps},\"heartRate\":${md.heartRate}}"
-                            val wv2 = webViewRef.value
-                            if (wv2 != null) {
-                                var injected3 = false
-                                repeat(5) {
-                                    val script3 = "(function(){try{if(typeof window.updateHealthData==='function'){window.updateHealthData($mjson);return true;}else{return false;}}catch(e){return false;}})();"
-                                    val ok3 = evaluateJavascriptBoolean(wv2, script3, timeoutMs = 1000)
-                                    if (ok3) { injected3 = true; return@repeat }
-                                    delay(200)
-                                }
-                                if (!injected3) {
-                                    wv2.post { wv2.evaluateJavascript("try{window.updateHealthData($mjson);}catch(e){}", null) }
-                                }
-                            }
-                            Log.d("HealthApp", "refreshed mock data in polling loop -> $mjson")
-                        } catch (ex: Exception) {
-                            Log.d("HealthApp", "error refreshing mock data: ${ex.message}")
-                            // ignore
-                        }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.d("HealthApp", "fetch/inject error: ${e.message}")
-            // ignore for now; you may show error in UI
+            addLog("ERROR in health data flow: ${e.message}")
+            Log.e("HealthApp", "Error in health data flow", e)
         }
     }
 }
@@ -339,10 +363,7 @@ fun HealthDashboard(
     permissionHandler: HealthPermissionHandler = MockHealthPermissionHandler(),
     repository: HealthRepository? = null
 ) {
-    // ...existing code... (kept for previews and fallback)
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("この画面はプレビュー用です。Web ダッシュボードを使用してください。")
     }
 }
-
-// ...existing code... (MiniStatCard, Greeting, Preview already present earlier)

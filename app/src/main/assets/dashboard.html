@@ -257,6 +257,60 @@
         console.log('setHealthConnectStatus', connected);
     };
 
+    // Function to receive and update health data from Kotlin
+    window.updateHealthData = function(data) {
+        console.log('📊 updateHealthData called with:', data);
+
+        if (typeof data === 'string') {
+            try {
+                data = JSON.parse(data);
+            } catch(e) {
+                console.error('Failed to parse data:', e);
+                return false;
+            }
+        }
+
+        const { exerciseScore, sleepHours, steps, heartRate } = data;
+
+        // Update exercise score gauge
+        const gaugeCircle = document.querySelector('.gauge-svg circle:nth-child(2)');
+        const scoreDisplay = document.querySelector('.gauge-ring > div');
+        if (gaugeCircle && scoreDisplay) {
+            const circumference = 2 * Math.PI * 45;
+            const offset = circumference - (exerciseScore / 100) * circumference;
+            gaugeCircle.style.strokeDashoffset = offset;
+            scoreDisplay.innerHTML = `${exerciseScore}<span class="text-lg text-gray-600">/100</span>`;
+            console.log('✓ Updated exercise score:', exerciseScore);
+        }
+
+        // Update sleep hours
+        const sleepElement = document.querySelector('h3:nth-of-type(1)')?.parentElement?.querySelector('p') ||
+                            document.getElementById('sleep-hours');
+        if (sleepElement) {
+            sleepElement.innerText = `${sleepHours.toFixed(1)}時間`;
+            console.log('✓ Updated sleep hours:', sleepHours);
+        }
+
+        // Update steps
+        const stepsElement = document.querySelector('h3:nth-of-type(2)')?.parentElement?.querySelector('p') ||
+                            document.getElementById('steps-count');
+        if (stepsElement) {
+            stepsElement.innerText = `${steps.toLocaleString()}歩`;
+            console.log('✓ Updated steps:', steps);
+        }
+
+        // Update heart rate
+        const hrElement = document.querySelector('h3:nth-of-type(3)')?.parentElement?.querySelector('p') ||
+                         document.getElementById('heart-rate');
+        if (hrElement) {
+            hrElement.innerText = `${heartRate} bpm`;
+            console.log('✓ Updated heart rate:', heartRate);
+        }
+
+        console.log('✅ updateHealthData completed');
+        return true;
+    };
+
     // Keep existing initializeApp behavior for local debugging
     const fetchHealthData = async () => {
         console.log('Local fetchHealthData running (debug)');
